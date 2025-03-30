@@ -17,7 +17,7 @@ def crawl_watcha_boxoffice():
         driver.get(url)
         
         # 팝업창이 나타날 때까지 대기 (최대 5초)
-        wait = WebDriverWait(driver, 5)
+        wait = WebDriverWait(driver, 2)
         try:
             # 팝업창의 닫기 버튼을 찾아서 클릭
             # 실제 팝업창의 닫기 버튼 클래스나 ID를 확인하여 수정 필요
@@ -30,7 +30,7 @@ def crawl_watcha_boxoffice():
             pass
         
         # 박스오피스 항목들이 로드될 때까지 대기
-        wait = WebDriverWait(driver, 10)
+        wait = WebDriverWait(driver, 4)
         movies = wait.until(EC.presence_of_all_elements_located(
             (By.CSS_SELECTOR, "li.zK9dEEA5.w_exposed_cell")
         ))
@@ -40,15 +40,15 @@ def crawl_watcha_boxoffice():
         for movie in movies:
             try:
                 # 영화 제목과 연도가 포함된 텍스트
+                title = movie.find_element(By.CSS_SELECTOR, "div.Rw9JYf2r.MasrfAn6").text
                 title_year = movie.find_element(By.CSS_SELECTOR, "div.WWPgNOuc.KYbG4TeN").text
-                # 연도와 국가 정보를 제외한 제목만 추출 (· 기준으로 split)
-                title = title_year.split(' · ')[0].strip()
                 
                 # 예매율과 누적 관객 정보
                 stats = movie.find_element(By.CSS_SELECTOR, "div.VWL8zgFg.RiDHrQhO").text
                 
                 boxoffice_list.append({
-                    'title': title,  # title_year 대신 title로 변경
+                    'title': title,
+                    'title_year': title_year, # title_year 대신 title로 변경
                     'stats': stats
                 })
             except:
@@ -66,5 +66,6 @@ if __name__ == "__main__":
     # 결과 출력 (title_year를 title로 변경)
     for idx, movie in enumerate(results, 1):
         print(f"{idx}. {movie['title']}")
+        print(f" {movie['title_year']}")
         print(f"   {movie['stats']}")
-        print("-" * 50)
+        print("-" * 50)      
