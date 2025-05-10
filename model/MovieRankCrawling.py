@@ -4,6 +4,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 import time
+import sys
 
 def _convert_audience_to_number(audience_text):
     """
@@ -204,4 +205,6 @@ if __name__ == "__main__":
          for i, comment in enumerate(comment_list, 1):
             print(f"{i}. {comment}")
          print("-" * 50)
+    sys.stdout.flush()
+    time.sleep(0.1)
 
