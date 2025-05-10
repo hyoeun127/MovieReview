@@ -100,12 +100,15 @@ def crawl_watcha_boxoffice():
             except:
                 continue
 
-        # 각 영화의 상세 페이지에서 코멘트 수 가져오기
+        ##########################################################################################
+        # 각 영화의 상세 페이지에서 코멘트 수와 상위 10개 코멘트 가져오기
+        ##########################################################################################
+        
         for movie_info in movie_info_list:
             try:
-                # 상세 페이지로 이동
+                # 먼저 상세 페이지에서 코멘트 수 가져오기
                 driver.get(movie_info['movie_link'])
-                wait = WebDriverWait(driver, 2)  # 대기 시간 증가
+                wait = WebDriverWait(driver, 2)
                 
                 # 페이지가 완전히 로드될 때까지 대기
                 time.sleep(1)
@@ -116,6 +119,7 @@ def crawl_watcha_boxoffice():
                         (By.CSS_SELECTOR, "span.LYpRbSY5.YBhuyor5")
                     ))
                     comment_count = comment_element.text
+                    comment_link = movie_info['movie_link'] + '/comments'
                 except TimeoutException:
                     comment_count = "코멘트 정보 없음"
                 
@@ -123,7 +127,9 @@ def crawl_watcha_boxoffice():
                     'title': movie_info['title'],
                     'title_year': movie_info['title_year'],
                     'audience_number': movie_info['audience_number'],
-                    'comment_count': comment_count
+                    'comment_count': comment_count,
+                    'movie_link': movie_info['movie_link'],
+                    'comment_link': comment_link
                 })
                 
             except Exception as e:
@@ -131,6 +137,46 @@ def crawl_watcha_boxoffice():
                 
         return boxoffice_list
         
+    finally:
+        driver.quit()
+
+def get_comment_list(comment_link):
+    try:
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless')  # 창이 뜨지 않게 설정
+        options.add_argument('--disable-gpu')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        driver = webdriver.Chrome(options=options)
+        
+        print("데이터를 가져오는 중입니다...")
+        
+        driver.get(comment_link)
+        
+        wait = WebDriverWait(driver, 2)
+        time.sleep(1)
+        
+        # 코멘트 article 요소 찾기
+        comment_articles = wait.until(EC.presence_of_all_elements_located(
+            (By.CSS_SELECTOR, "ul.M0RC1CZi article.nSrzrW7M")
+        ))
+        
+        comments = []
+        for article in comment_articles[:10]:
+            try:
+                # 코멘트 텍스트 요소 찾기
+                comment_text = article.find_element(By.CSS_SELECTOR, "p.BEKXQlwB.vc3vf0Y6.CommentText").text
+                if comment_text:
+                    comments.append(comment_text)
+            except Exception as e:
+                print(f"개별 코멘트 추출 실패: {e}")
+                continue
+                
+        return comments
+        
+    except Exception as e:
+        print(f"코멘트 목록을 가져오는데 실패했습니다. 오류: {e}")
+        return []
     finally:
         driver.quit()
 
@@ -142,9 +188,20 @@ if __name__ == "__main__":
     sorted_results = sort_by_audience(results)
     
     # 결과 출력
-    for idx, movie in enumerate(sorted_results, 1): ## 관객수 기준으로 1위부터 나열하여 출력함
+    for idx, movie in enumerate(sorted_results, 1):
         print(f"{idx}. {movie['title']}")
         print(f" {movie['title_year']}")
         print(f" 누적 관객 : {movie['audience_number']:,}명")
         print(f" 코멘트 수 : {movie['comment_count']}")
+        print(f" 영화 링크 : {movie['movie_link']}")
+        print(f" 코멘트 링크 : {movie['comment_link']}")
         print("-" * 50)
+        
+    for idx, movie in enumerate(sorted_results, 1):
+         comment_list = get_comment_list(movie['comment_link'])
+         print(f"영화 제목 : {movie['title']}")
+         print("상위 10개 코멘트 :")
+         for i, comment in enumerate(comment_list, 1):
+            print(f"{i}. {comment}")
+         print("-" * 50)
+
