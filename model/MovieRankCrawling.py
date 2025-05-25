@@ -58,10 +58,12 @@ def get_movie_info(movie):
         MovieInfo: 영화 정보를 담은 MovieInfo 객체 또는 None (정보 추출 실패 시)
     """
     try:
+        
+        time.sleep(2)
         # 제목 추출
         title_element = movie.find_element(By.CSS_SELECTOR, "div.Rw9JYf2r.eotgxjY4")
         title = title_element.text if title_element else "제목 없음"
-        
+    
         # 개봉년도 추출
         year_element = movie.find_element(By.CSS_SELECTOR, "div.EIFs0yBF.KYbG4TeN")
         title_year = year_element.text if year_element else "연도 정보 없음"
@@ -115,7 +117,7 @@ def get_comment_list(driver, comment_link):
         
         driver.get(comment_link)
         wait = WebDriverWait(driver, 5)
-        time.sleep(2)
+        time.sleep(6)
         
         # 코멘트 article 요소 찾기
         comment_articles = wait.until(EC.presence_of_all_elements_located(
@@ -123,23 +125,35 @@ def get_comment_list(driver, comment_link):
         ))
         
         comments = []
-        for article in comment_articles[:10]:  # 상위 10개 코멘트만 가져오기
+        for idx, article in enumerate(comment_articles[:10]):  # 상위 10개 코멘트만 가져오기
             try:
                 # 코멘트 텍스트 요소 찾기
                 comment_text = article.find_element(By.CSS_SELECTOR, "p.BEKXQlwB.vc3vf0Y6.CommentText").text
                 if comment_text:
+                    if comment_text == "스포일러가 있어요!!보기":
+                        try:
+                            # 스포일러 버튼 찾기 (텍스트가 '보기'인 버튼)
+                            spoiler_button = article.find_element(By.XPATH, ".//button[contains(text(), '보기')]")
+                            # 버튼 클릭
+                            spoiler_button.click()
+                            time.sleep(1)  # 클릭 후 잠시 대기
+                            # 클릭 후 실제 코멘트 텍스트 다시 가져오기
+                            comment_text = article.find_element(By.CSS_SELECTOR, "p.BEKXQlwB.vc3vf0Y6.CommentText").text
+                        except Exception as e:
+                            print(f"스포일러 버튼 클릭 실패: {e}")
                     comments.append(comment_text)
             except Exception as e:
                 print(f"개별 코멘트 추출 실패: {e}")
                 continue
                 
+        print(f"추출된 코멘트 수: {len(comments)}")
         return comments
         
     except Exception as e:
         print(f"코멘트 목록을 가져오는데 실패했습니다. 오류: {e}")
         return []
 
-def create_comment_info(driver, movie_link):
+def create_comment_info(movie_link):
     """
     영화의 코멘트 정보를 수집하는 함수
     Args:
@@ -149,6 +163,11 @@ def create_comment_info(driver, movie_link):
         CommentInfo: 코멘트 정보를 담은 CommentInfo 객체
     """
     try:
+        driver = get_driver_by_url(movie_link)
+        close_popup(driver)
+        comment_count = 0
+        comment_link = ""
+        comment_list = []
         driver.get(movie_link)
         wait = WebDriverWait(driver, 2)
         time.sleep(1)
@@ -158,11 +177,14 @@ def create_comment_info(driver, movie_link):
                 (By.CSS_SELECTOR, "span.LYpRbSY5.YBhuyor5")
             ))
             comment_count = comment_element.text
-            comment_link = movie_link + '/comments'
+            comment_link = None
+            comment_list = []
             
+            comment_link = movie_link + '/comments'
+            comment_list = []
             # 코멘트 목록 가져오기
             comment_list = get_comment_list(driver, comment_link)
-            
+
         except TimeoutException:
             print(f"코멘트 정보를 찾을 수 없습니다: {movie_link}")
             comment_count = "코멘트 정보 없음"
@@ -184,26 +206,13 @@ def create_comment_info(driver, movie_link):
         )
 
 def crawl_watcha_boxoffice():
-    options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
     
-    driver = webdriver.Chrome(options=options)
     url = "https://pedia.watcha.com/ko-KR/?domain=movie"
-
+    driver = get_driver_by_url(url)
+    
     try:
-        driver.get(url)
-        wait = WebDriverWait(driver, 3)
-        try:
-            close_button = wait.until(EC.presence_of_element_located(## 엘리먼트가 나올때까지 기다림
-                (By.CSS_SELECTOR, "button.a3VOQo6v.Fxip6vYZ.bmNDNA_p")## 이 버튼이 나올때까지 기다림
-            ))
-            close_button.click()## 버튼을 클릭함
-        except TimeoutException: ## 시간이 초과되면 패스함함
-            pass
-        
+        # 팝업창 닫기
+        close_popup(driver)
         # 영화 목록 가져오기
         wait = WebDriverWait(driver, 5)
         movies = wait.until(EC.presence_of_all_elements_located(
@@ -216,13 +225,18 @@ def crawl_watcha_boxoffice():
 
         print(f"총 {len(movies)}개의 영화를 찾았습니다.")
         
+        # 처음 10개의 영화만 처리
+        movies = movies[:2]
+        print(f"처리할 영화 수: {len(movies)}개")
+        
         # 먼저 모든 영화의 기본 정보를 수집
         movie_info_list = []
         for idx, movie in enumerate(movies, 1):
-            print(f"\n{idx}번째 영화 정보 수집 중...")
             movie_info = get_movie_info(movie)
+            print("movie_info : ", movie_info)
+            
             if movie_info:
-                movie_info.comment_info = create_comment_info(driver, movie_info.movie_link)
+                movie_info.comment_info = create_comment_info(movie_info.movie_link)
                 movie_info_list.append(movie_info)
                 time.sleep(1)
                 
@@ -230,6 +244,31 @@ def crawl_watcha_boxoffice():
         
     finally:
         driver.quit()
+
+def close_popup(driver):
+    try:
+        wait = WebDriverWait(driver,5)
+        close_buttons = wait.until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "button.tG3uDBku"))
+        )
+        for button in close_buttons:
+            if button.text.strip() == "닫기":
+                button.click()
+                print("팝업창 닫기 성공")
+                break
+    except Exception as e:
+        print(f"팝업창 닫기 실패: {e}")
+
+def get_driver_by_url(url):
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')  # headless 모드 비활성화
+    options.add_argument('--disable-gpu')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    
+    driver = webdriver.Chrome(options=options)
+    driver.get(url)
+    return driver    
 
 # 실행
 if __name__ == "__main__":
